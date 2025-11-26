@@ -1,4 +1,4 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,22 +10,67 @@ import {
   Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useShoppingStore } from './store/useShoppingStore';
-
+import { supabase } from './supabaseclient';
 
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { items, hapusItem, toggleSudahDibeli } = useShoppingStore();
+  const [items, setItems] = useState([]);
 
+  // ===============================
+  // 🔥 FETCH DATA DARI SUPABASE
+  // ===============================
+  const getItems = async () => {
+    const { data, error } = await supabase
+      .from('items')
+      .select('*')
+      .order('id', { ascending: false });
+
+    if (error) console.log(error);
+    else setItems(data);
+  };
+
+  useEffect(() => {
+    getItems();
+  }, []);
+
+  // ===============================
+  // 🔥 UPDATE STATUS SUDAH DIBELI
+  // ===============================
+  const toggleSudahDibeli = async (id, currentValue) => {
+    const { error } = await supabase
+      .from('items')
+      .update({ sudahDibeli: !currentValue })
+      .eq('id', id);
+
+    if (error) console.log('Update error:', error);
+    else getItems(); // refresh data
+  };
+
+  // ===============================
+  // 🔥 HAPUS DATA SUPABASE
+  // ===============================
   const confirmDelete = (id) => {
     Alert.alert('Hapus Item', 'Yakin ingin menghapus item ini?', [
       { text: 'Batal', style: 'cancel' },
-      { text: 'Hapus', style: 'destructive', onPress: () => hapusItem(id) },
+      {
+        text: 'Hapus',
+        style: 'destructive',
+        onPress: () => deleteItem(id),
+      },
     ]);
   };
 
+  const deleteItem = async (id) => {
+    const { error } = await supabase.from('items').delete().eq('id', id);
+    if (error) console.log('Delete error:', error);
+    else getItems();
+  };
+
+  // ===============================
+  // 🔥 RENDER ITEM
+  // ===============================
   const renderItem = ({ item }) => (
     <TouchableOpacity
       onPress={() => router.push(`/${item.id}`)}
@@ -43,13 +88,18 @@ export default function HomeScreen() {
           </Text>
         </Text>
       </View>
+
       <View style={{ flexDirection: 'column', gap: 5 }}>
         <Button
           title={item.sudahDibeli ? 'Belum' : 'Beli'}
-          onPress={() => toggleSudahDibeli(item.id)}
+          onPress={() => toggleSudahDibeli(item.id, item.sudahDibeli)}
           color={item.sudahDibeli ? '#f59e0b' : '#16a34a'}
         />
-        <Button title="Hapus" color="#ef4444" onPress={() => confirmDelete(item.id)} />
+        <Button
+          title="Hapus"
+          color="#ef4444"
+          onPress={() => confirmDelete(item.id)}
+        />
       </View>
     </TouchableOpacity>
   );
@@ -60,7 +110,7 @@ export default function HomeScreen() {
       <Text style={styles.subtitle}>Daftar Belanja Alat & Umpan</Text>
 
       <FlatList
-        data={items.sort((a, b) => b.id - a.id)}
+        data={items}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderItem}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -74,11 +124,18 @@ export default function HomeScreen() {
           </View>
         )}
         contentContainerStyle={
-          items.length === 0 ? { flexGrow: 1, justifyContent: 'center' } : null
+          items.length === 0
+            ? { flexGrow: 1, justifyContent: 'center' }
+            : null
         }
       />
+
       <View style={styles.addButton}>
-        <Button title="➕ Tambah Item" color="#047857" onPress={() => router.push('/add')} />
+        <Button
+          title="➕ Tambah Item"
+          color="#047857"
+          onPress={() => router.push('/add')}
+        />
       </View>
     </View>
   );
@@ -103,6 +160,11 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', padding: 20 },
   emptyEmoji: { fontSize: 64 },
   emptyText: { fontSize: 18, fontWeight: '700', color: '#047857' },
-  emptySub: { color: '#6b7280', fontSize: 14, textAlign: 'center', marginTop: 4 },
+  emptySub: {
+    color: '#6b7280',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 4,
+  },
   addButton: { marginTop: 20 },
 });
