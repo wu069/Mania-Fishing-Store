@@ -17,6 +17,27 @@ const { width } = Dimensions.get('window');
 export default function HomeScreen() {
   const router = useRouter();
   const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // ===============================
+  // 🔥 CEK LOGIN USER
+  // ===============================
+  const checkUser = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      router.push('/login'); // redirect ke halaman login jika belum login
+    } else {
+      getItems();
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    checkUser();
+  }, []);
 
   // ===============================
   // 🔥 FETCH DATA DARI SUPABASE
@@ -31,10 +52,6 @@ export default function HomeScreen() {
     else setItems(data);
   };
 
-  useEffect(() => {
-    getItems();
-  }, []);
-
   // ===============================
   // 🔥 UPDATE STATUS SUDAH DIBELI
   // ===============================
@@ -45,7 +62,7 @@ export default function HomeScreen() {
       .eq('id', id);
 
     if (error) console.log('Update error:', error);
-    else getItems(); // refresh data
+    else getItems();
   };
 
   // ===============================
@@ -66,6 +83,14 @@ export default function HomeScreen() {
     const { error } = await supabase.from('items').delete().eq('id', id);
     if (error) console.log('Delete error:', error);
     else getItems();
+  };
+
+  // ===============================
+  // 🔥 LOGOUT
+  // ===============================
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
   };
 
   // ===============================
@@ -104,6 +129,14 @@ export default function HomeScreen() {
     </TouchableOpacity>
   );
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>🎣 Mania Fishing Store</Text>
@@ -130,11 +163,16 @@ export default function HomeScreen() {
         }
       />
 
-      <View style={styles.addButton}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>
         <Button
           title="➕ Tambah Item"
           color="#047857"
           onPress={() => router.push('/add')}
+        />
+        <Button
+          title="Logout"
+          color="#ef4444"
+          onPress={handleLogout}
         />
       </View>
     </View>
@@ -166,5 +204,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
-  addButton: { marginTop: 20 },
 });
