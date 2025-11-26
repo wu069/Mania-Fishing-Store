@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useShoppingStore } from './store/useShoppingStore';
 
+
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
