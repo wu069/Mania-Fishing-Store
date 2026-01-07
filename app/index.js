@@ -1,16 +1,17 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  Button,
   Alert,
-  StyleSheet,
+  Button,
   Dimensions,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { supabase } from './supabaseclient';
+import { supabase } from './libary/supabaseclient';
 
 const { width } = Dimensions.get('window');
 
@@ -18,9 +19,10 @@ export default function HomeScreen() {
   const router = useRouter();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
   // ===============================
-  // 🔥 CEK LOGIN USER
+  // 🔐 CEK LOGIN
   // ===============================
   const checkUser = async () => {
     const {
@@ -28,10 +30,12 @@ export default function HomeScreen() {
     } = await supabase.auth.getSession();
 
     if (!session) {
-      router.push('/login'); // redirect ke halaman login jika belum login
-    } else {
-      getItems();
+      router.replace('/login');
+      return;
     }
+
+    await getItems(session.user.id);
+    await handleDeferredDeepLink();
     setLoading(false);
   };
 
@@ -40,33 +44,59 @@ export default function HomeScreen() {
   }, []);
 
   // ===============================
-  // 🔥 FETCH DATA DARI SUPABASE
+  // 🔁 DEFERRED DEEP LINK
   // ===============================
-  const getItems = async () => {
-    const { data, error } = await supabase
-      .from('items')
-      .select('*')
-      .order('id', { ascending: false });
-
-    if (error) console.log(error);
-    else setItems(data);
+  const handleDeferredDeepLink = async () => {
+    const deferredId = await AsyncStorage.getItem('deferred_item_id');
+    if (deferredId) {
+      await AsyncStorage.removeItem('deferred_item_id');
+      router.replace(`/${deferredId}`);
+    }
   };
 
   // ===============================
-  // 🔥 UPDATE STATUS SUDAH DIBELI
+  // 📥 FETCH DATA (MODIFIKASI MINIMAL)
+  // ===============================
+  const getItems = async (userId) => {
+    const { data, error } = await supabase
+      .from('items') // ✅ PASTI ADA
+      .select('*')
+      .or(`user_id.eq.${userId},user_id.is.null`) // ⭐ MODIFIKASI UTAMA
+      .order('id', { ascending: false });
+
+    if (error) {
+      console.log('FETCH ERROR:', error);
+    } else {
+      setItems(data || []);
+    }
+  };
+
+  // ===============================
+  // 🔄 UPDATE STATUS
   // ===============================
   const toggleSudahDibeli = async (id, currentValue) => {
+    setActionLoading(true);
+
     const { error } = await supabase
       .from('items')
       .update({ sudahDibeli: !currentValue })
       .eq('id', id);
 
-    if (error) console.log('Update error:', error);
-    else getItems();
+    if (error) {
+      Alert.alert('Error', 'Gagal update item');
+    } else {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session) await getItems(session.user.id);
+    }
+
+    setActionLoading(false);
   };
 
   // ===============================
-  // 🔥 HAPUS DATA SUPABASE
+  // 🗑️ DELETE ITEM
   // ===============================
   const confirmDelete = (id) => {
     Alert.alert('Hapus Item', 'Yakin ingin menghapus item ini?', [
@@ -80,21 +110,33 @@ export default function HomeScreen() {
   };
 
   const deleteItem = async (id) => {
+    setActionLoading(true);
+
     const { error } = await supabase.from('items').delete().eq('id', id);
-    if (error) console.log('Delete error:', error);
-    else getItems();
+
+    if (error) {
+      Alert.alert('Error', 'Gagal menghapus item');
+    } else {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session) await getItems(session.user.id);
+    }
+
+    setActionLoading(false);
   };
 
   // ===============================
-  // 🔥 LOGOUT
+  // 🚪 LOGOUT
   // ===============================
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.push('/login');
+    router.replace('/login');
   };
 
   // ===============================
-  // 🔥 RENDER ITEM
+  // 🧱 RENDER ITEM
   // ===============================
   const renderItem = ({ item }) => (
     <TouchableOpacity
@@ -114,15 +156,16 @@ export default function HomeScreen() {
         </Text>
       </View>
 
-      <View style={{ flexDirection: 'column', gap: 5 }}>
+      <View style={{ gap: 6 }}>
         <Button
-          title={item.sudahDibeli ? 'Belum' : 'Beli'}
+          title={actionLoading ? 'Loading...' : item.sudahDibeli ? 'Belum' : 'Beli'}
+          disabled={actionLoading}
           onPress={() => toggleSudahDibeli(item.id, item.sudahDibeli)}
-          color={item.sudahDibeli ? '#f59e0b' : '#16a34a'}
         />
         <Button
           title="Hapus"
           color="#ef4444"
+          disabled={actionLoading}
           onPress={() => confirmDelete(item.id)}
         />
       </View>
@@ -147,33 +190,11 @@ export default function HomeScreen() {
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderItem}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
-        ListEmptyComponent={() => (
-          <View style={styles.empty}>
-            <Text style={styles.emptyEmoji}>🪝</Text>
-            <Text style={styles.emptyText}>Belum ada item belanja</Text>
-            <Text style={styles.emptySub}>
-              Gunakan tab “Tambah” untuk menambahkan alat pancing baru
-            </Text>
-          </View>
-        )}
-        contentContainerStyle={
-          items.length === 0
-            ? { flexGrow: 1, justifyContent: 'center' }
-            : null
-        }
       />
 
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>
-        <Button
-          title="➕ Tambah Item"
-          color="#047857"
-          onPress={() => router.push('/add')}
-        />
-        <Button
-          title="Logout"
-          color="#ef4444"
-          onPress={handleLogout}
-        />
+      <View style={styles.footer}>
+        <Button title="➕ Tambah Item" onPress={() => router.push('/add')} />
+        <Button title="Logout" color="#ef4444" onPress={handleLogout} />
       </View>
     </View>
   );
@@ -188,20 +209,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderRadius: 10,
     padding: 14,
-    elevation: 1,
-    shadowOpacity: 0.1,
     width: width - 32,
   },
-  itemName: { fontWeight: '700', fontSize: 16, color: '#111827' },
-  itemSub: { color: '#374151', fontSize: 14 },
+  itemName: { fontWeight: '700', fontSize: 16 },
+  itemSub: { fontSize: 14 },
   separator: { height: 10 },
-  empty: { alignItems: 'center', padding: 20 },
-  emptyEmoji: { fontSize: 64 },
-  emptyText: { fontSize: 18, fontWeight: '700', color: '#047857' },
-  emptySub: {
-    color: '#6b7280',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 4,
-  },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
 });

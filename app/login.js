@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { View, Text, TextInput, Button, Alert, StyleSheet } from 'react-native';
-import { supabase } from './supabaseclient';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Alert, Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { supabase } from './libary/supabaseclient';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -9,23 +9,31 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
-    const { user, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) Alert.alert('Error', error.message);
-    else {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      Alert.alert('Login Gagal', error.message);
+    } else {
       Alert.alert('Sukses', 'Login berhasil');
-      router.push('/home'); // pindah ke halaman utama
+      router.replace('/'); // ✅ ke index.js
     }
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Login</Text>
+
       <TextInput
         placeholder="Email"
         style={styles.input}
+        autoCapitalize="none"
         value={email}
         onChangeText={setEmail}
       />
+
       <TextInput
         placeholder="Password"
         style={styles.input}
@@ -33,7 +41,14 @@ export default function LoginScreen() {
         value={password}
         onChangeText={setPassword}
       />
+
       <Button title="Login" onPress={handleLogin} />
+      <View style={{ marginTop: 10 }}>
+        <Button
+          title="Belum punya akun? Register"
+          onPress={() => router.push('/register')} // ✅ FIX
+        />
+      </View>
     </View>
   );
 }
