@@ -1,7 +1,15 @@
 // app/[id].js
 import React, { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { View, Text, TextInput, Button, Alert, StyleSheet, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  Button,
+  Alert,
+  StyleSheet,
+  ScrollView,
+} from 'react-native';
 import { useShoppingStore } from './store/useShoppingStore';
 
 export default function DetailScreen() {
@@ -9,11 +17,20 @@ export default function DetailScreen() {
   const router = useRouter();
   const { items, editItem, hapusItem } = useShoppingStore();
 
-  const item = items.find((i) => i.id === id);
+ 
+  const itemId = Number(id);
+
+  
+  const item = items.find((i) => i.id === itemId);
+
   const [nama, setNama] = useState(item?.nama || '');
   const [kategori, setKategori] = useState(item?.kategori || '');
-  const [quantity, setQuantity] = useState(String(item?.quantity || ''));
-  const [harga, setHarga] = useState(String(item?.harga || ''));
+  const [quantity, setQuantity] = useState(
+    item?.quantity ? String(item.quantity) : ''
+  );
+  const [harga, setHarga] = useState(
+    item?.harga ? String(item.harga) : ''
+  );
   const [deskripsi, setDeskripsi] = useState(item?.deskripsi || '');
 
   const simpanPerubahan = () => {
@@ -22,16 +39,16 @@ export default function DetailScreen() {
       return;
     }
 
-    editItem(Number(id), {
+    editItem(itemId, {
       nama: nama.trim(),
       kategori: kategori.trim(),
-      quantity: parseInt(quantity),
-      harga: harga ? Number(harga) : 0,
+      quantity: parseInt(quantity) || 0,
+      harga: Number(harga) || 0,
       deskripsi: deskripsi.trim(),
     });
 
     Alert.alert('✅ Sukses', 'Perubahan disimpan');
-    router.push('/');
+    router.replace('/');
   };
 
   const confirmDelete = () => {
@@ -41,18 +58,20 @@ export default function DetailScreen() {
         text: 'Hapus',
         style: 'destructive',
         onPress: () => {
-          hapusItem(Number(id));
+          hapusItem(itemId);
           Alert.alert('✅ Dihapus', 'Item berhasil dihapus');
-          router.push('/');
+          router.replace('/');
         },
       },
     ]);
   };
 
-  if (!item) {
+  
+  if (!id || isNaN(itemId) || !item) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Text>Item tidak ditemukan.</Text>
+      <View style={styles.center}>
+        <Text style={styles.notFound}>Item tidak ditemukan.</Text>
+        <Button title="⬅ Kembali" onPress={() => router.replace('/')} />
       </View>
     );
   }
@@ -91,7 +110,7 @@ export default function DetailScreen() {
         onChangeText={setDeskripsi}
       />
 
-      <View style={{ marginTop: 10, gap: 8 }}>
+      <View style={{ marginTop: 12, gap: 8 }}>
         <Button title="💾 Simpan Perubahan" color="#047857" onPress={simpanPerubahan} />
         <Button title="🗑️ Hapus Item" color="#ef4444" onPress={confirmDelete} />
       </View>
@@ -111,4 +130,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
     backgroundColor: '#fff',
   },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  notFound: {
+    fontSize: 16,
+    marginBottom: 12,
+    color: '#374151',
+  },
 });
+

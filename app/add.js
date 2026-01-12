@@ -1,132 +1,78 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  Button,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Dimensions,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
 import { useRouter } from 'expo-router';
-import { useShoppingStore } from './store/useShoppingStore';
+import { useState } from 'react';
+import { Alert, Button, Text, TextInput, View } from 'react-native';
+import { supabase } from './libary/supabaseclient';
 
-const { width } = Dimensions.get('window');
-
-export default function AddItemScreen() {
+export default function AddItem() {
   const router = useRouter();
-  const tambahItem = useShoppingStore((s) => s.tambahItem);
-
   const [nama, setNama] = useState('');
   const [kategori, setKategori] = useState('');
-  const [quantity, setQuantity] = useState('1');
+  const [quantity, setQuantity] = useState('');
   const [harga, setHarga] = useState('');
   const [deskripsi, setDeskripsi] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const validateForm = () => {
-    if (!nama.trim()) return 'Nama item wajib diisi';
-    if (!kategori.trim()) return 'Kategori wajib diisi';
-    if (isNaN(quantity) || parseInt(quantity) <= 0) return 'Quantity harus angka > 0';
-    if (harga && isNaN(harga)) return 'Harga harus angka';
-    return null;
-  };
+ const simpanItem = async () => {
+  if (!nama || !kategori) {
+    Alert.alert('Error', 'Nama dan kategori wajib diisi');
+    return;
+  }
 
-  const onSubmit = () => {
-    const error = validateForm();
-    if (error) {
-      Alert.alert('Validasi Gagal', error);
-      return;
-    }
+  setLoading(true);
 
-    tambahItem({
-      nama: nama.trim(),
-      kategori: kategori.trim(),
-      quantity: parseInt(quantity),
-      harga: harga ? Number(harga) : 0,
-      deskripsi: deskripsi.trim(),
-    });
+  const { data, error: sessionError } = await supabase.auth.getSession();
 
-    Alert.alert('✅ Sukses', 'Item berhasil ditambahkan!');
-    router.push('/');
-  };
+  if (sessionError || !data.session) {
+    setLoading(false);
+    Alert.alert('Error', 'User belum login');
+    return;
+  }
+
+  const session = data.session;
+
+  const { data: insertData, error } = await supabase
+  .from('items')
+  .insert({
+    nama,
+    kategori,
+    quantity: Number(quantity) || 0,
+    harga: Number(harga) || 0,
+    deskripsi,
+    sudahdibeli: false,
+    user_id: session.user.id,
+  })
+  .select();
+
+console.log('INSERT DATA:', insertData);
+console.log('INSERT ERROR:', error);
+
+  setLoading(false);
+
+  if (error) {
+    Alert.alert('Gagal', error.message);
+  } else {
+    Alert.alert('Sukses', 'Barang berhasil ditambahkan');
+    router.replace('/');
+  }
+};
+
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{ flex: 1 }}
-    >
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Tambah Item 🎣</Text>
+    <View style={{ padding: 16 }}>
+      <Text>Tambah Item</Text>
 
-        <Text style={styles.label}>Nama Item *</Text>
-        <TextInput
-          value={nama}
-          onChangeText={setNama}
-          placeholder="Contoh: Reel Shimano FX200"
-          style={styles.input}
-        />
+      <TextInput placeholder="Nama" onChangeText={setNama} />
+      <TextInput placeholder="Kategori" onChangeText={setKategori} />
+      <TextInput placeholder="Quantity" keyboardType="numeric" onChangeText={setQuantity} />
+      <TextInput placeholder="Harga" keyboardType="numeric" onChangeText={setHarga} />
+      <TextInput placeholder="Deskripsi" onChangeText={setDeskripsi} />
 
-        <Text style={styles.label}>Kategori *</Text>
-        <TextInput
-          value={kategori}
-          onChangeText={setKategori}
-          placeholder="Contoh: Reel, Umpan, Joran"
-          style={styles.input}
-        />
-
-        <Text style={styles.label}>Quantity *</Text>
-        <TextInput
-          value={quantity}
-          onChangeText={setQuantity}
-          keyboardType="numeric"
-          style={styles.input}
-        />
-
-        <Text style={styles.label}>Harga (opsional)</Text>
-        <TextInput
-          value={harga}
-          onChangeText={setHarga}
-          keyboardType="numeric"
-          placeholder="Misal: 250000"
-          style={styles.input}
-        />
-
-        <Text style={styles.label}>Deskripsi (opsional)</Text>
-        <TextInput
-          value={deskripsi}
-          onChangeText={setDeskripsi}
-          multiline
-          style={[styles.input, { height: 80 }]}
-          placeholder="Deskripsi singkat produk..."
-        />
-
-        <View style={{ marginTop: 12, gap: 8 }}>
-          <Button title="💾 Simpan Item" color="#047857" onPress={onSubmit} />
-          <Button title="⬅️ Kembali" color="#6b7280" onPress={() => router.back()} />
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <Button
+        title={loading ? 'Menyimpan...' : 'Simpan'}
+        onPress={simpanItem}
+        disabled={loading}
+      />
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    backgroundColor: '#ecfdf5',
-    minHeight: '100%',
-  },
-  title: { fontSize: 22, fontWeight: '800', color: '#047857', marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: '600', color: '#374151', marginTop: 8 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 4,
-    backgroundColor: '#fff',
-    width: width - 32,
-  },
-});
