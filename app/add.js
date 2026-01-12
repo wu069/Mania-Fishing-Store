@@ -12,37 +12,50 @@ export default function AddItem() {
   const [deskripsi, setDeskripsi] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const simpanItem = async () => {
-    if (!nama || !kategori) {
-      Alert.alert('Error', 'Nama dan kategori wajib diisi');
-      return;
-    }
+ const simpanItem = async () => {
+  if (!nama || !kategori) {
+    Alert.alert('Error', 'Nama dan kategori wajib diisi');
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+  const { data, error: sessionError } = await supabase.auth.getSession();
 
-    const { error } = await supabase.from('items').insert({
-      nama,
-      kategori,
-      quantity: Number(quantity) || 0,
-      harga: Number(harga) || 0,
-      deskripsi,
-      sudahDibeli: false,
-      user_id: session.user.id,
-    });
-
+  if (sessionError || !data.session) {
     setLoading(false);
+    Alert.alert('Error', 'User belum login');
+    return;
+  }
 
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      Alert.alert('Sukses', 'Item berhasil ditambahkan');
-      router.replace('/');
-    }
-  };
+  const session = data.session;
+
+  const { data: insertData, error } = await supabase
+  .from('items')
+  .insert({
+    nama,
+    kategori,
+    quantity: Number(quantity) || 0,
+    harga: Number(harga) || 0,
+    deskripsi,
+    sudahdibeli: false,
+    user_id: session.user.id,
+  })
+  .select();
+
+console.log('INSERT DATA:', insertData);
+console.log('INSERT ERROR:', error);
+
+  setLoading(false);
+
+  if (error) {
+    Alert.alert('Gagal', error.message);
+  } else {
+    Alert.alert('Sukses', 'Barang berhasil ditambahkan');
+    router.replace('/');
+  }
+};
+
 
   return (
     <View style={{ padding: 16 }}>

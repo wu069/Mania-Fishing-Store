@@ -99,33 +99,40 @@ export default function HomeScreen() {
   // 🗑️ DELETE ITEM
   // ===============================
   const confirmDelete = (id) => {
-    Alert.alert('Hapus Item', 'Yakin ingin menghapus item ini?', [
-      { text: 'Batal', style: 'cancel' },
-      {
-        text: 'Hapus',
-        style: 'destructive',
-        onPress: () => deleteItem(id),
-      },
-    ]);
-  };
+  Alert.alert('Hapus Item', 'Yakin ingin menghapus item ini?', [
+    { text: 'Batal', style: 'cancel' },
+    {
+      text: 'Hapus',
+      style: 'destructive',
+      onPress: () => deleteItem(id),
+    },
+  ]);
+};
 
   const deleteItem = async (id) => {
-    setActionLoading(true);
+  setActionLoading(true);
 
-    const { error } = await supabase.from('items').delete().eq('id', id);
+  const { data, error } = await supabase
+    .from('items')
+    .delete()
+    .eq('id', id)
+    .select();
 
-    if (error) {
-      Alert.alert('Error', 'Gagal menghapus item');
-    } else {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+  console.log('DELETE DATA:', data);
+  console.log('DELETE ERROR:', error);
 
-      if (session) await getItems(session.user.id);
-    }
+  if (error) {
+    Alert.alert('Error', error.message);
+  } else {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    setActionLoading(false);
-  };
+    if (session) await getItems(session.user.id);
+  }
+
+  setActionLoading(false);
+};
 
   // ===============================
   // 🚪 LOGOUT
@@ -139,14 +146,19 @@ export default function HomeScreen() {
   // 🧱 RENDER ITEM
   // ===============================
   const renderItem = ({ item }) => (
+  <View
+    style={[
+      styles.item,
+      { backgroundColor: item.sudahDibeli ? '#dcfce7' : '#f9fafb' },
+    ]}
+  >
+    {/* AREA KLIK KE DETAIL */}
     <TouchableOpacity
+      style={{ flex: 1 }}
+      activeOpacity={0.7}
       onPress={() => router.push(`/${item.id}`)}
-      style={[
-        styles.item,
-        { backgroundColor: item.sudahDibeli ? '#dcfce7' : '#f9fafb' },
-      ]}
     >
-      <View style={{ flex: 1 }}>
+      <View>
         <Text style={styles.itemName}>{item.nama}</Text>
         <Text style={styles.itemSub}>
           Qty: {item.quantity} |{' '}
@@ -155,22 +167,24 @@ export default function HomeScreen() {
           </Text>
         </Text>
       </View>
-
-      <View style={{ gap: 6 }}>
-        <Button
-          title={actionLoading ? 'Loading...' : item.sudahDibeli ? 'Belum' : 'Beli'}
-          disabled={actionLoading}
-          onPress={() => toggleSudahDibeli(item.id, item.sudahDibeli)}
-        />
-        <Button
-          title="Hapus"
-          color="#ef4444"
-          disabled={actionLoading}
-          onPress={() => confirmDelete(item.id)}
-        />
-      </View>
     </TouchableOpacity>
-  );
+
+    {/* TOMBOL AKSI */}
+    <View style={{ gap: 6 }}>
+      <Button
+        title={actionLoading ? 'Loading...' : item.sudahDibeli ? 'Belum' : 'Beli'}
+        disabled={actionLoading}
+        onPress={() => toggleSudahDibeli(item.id, item.sudahDibeli)}
+      />
+      <Button
+        title="Hapus"
+        color="#ef4444"
+        disabled={actionLoading}
+        onPress={() => confirmDelete(item.id)}
+      />
+    </View>
+  </View>
+);
 
   if (loading) {
     return (
